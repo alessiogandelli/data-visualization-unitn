@@ -1,0 +1,1509 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# 1) basic plots
+
+```{r}
+library(pacman)
+p_load(gapminder)
+p_load(tidyverse)
+```
+
+```{r}
+summary(gapminder)
+```
+
+## first plots
+
+```{r}
+plot(lifeExp ~ year, gapminder)
+plot(lifeExp ~ gdpPercap, gapminder)
+plot(lifeExp ~ log(gdpPercap), gapminder)
+```
+
+```{r}
+table(gapminder$continent) # cout how many observation per continent 
+barplot(table(gapminder$continent))
+```
+
+```{r}
+plot(lifeExp ~ year, gapminder, subset = country == "Zimbabwe")
+plot(lifeExp ~ log(gdpPercap), gapminder, subset = year == 2007)
+```
+
+```{r}
+subset(gapminder, subset = country == "Cambodia")
+subset(gapminder, subset = country %in% c("Japan", "Belgium"), select = c(country, year, lifeExp))
+```
+
+## dplyr
+
+```{r}
+filter(gapminder, country == "Rwanda", year > 1979) # filter rows 
+gapminder %>% select(year, lifeExp) %>% head(4) # select columns 
+
+my_gap <- gapminder
+my_gap %>%  mutate(gdp_billion = pop * gdpPercap/1e+09, 
+                   popMil = round(pop/1e+06, 1), 
+                   total_years = pop * lifeExp) # create new columns 
+
+my_gap %>% arrange(year, country) # sort by year and coutry
+
+my_gap %>% rename(life_exp = lifeExp, gdp_percap = gdpPercap) # rename fields
+
+my_gap %>% group_by(continent) %>% summarize(n = n(), n_countries = n_distinct(country))
+my_gap %>% group_by(continent) %>% summarize(avg_lifeExp = mean(lifeExp))
+
+my_gap %>% 
+  select(country, year, continent, lifeExp) %>% 
+    group_by(continent, country) %>% 
+      mutate(le_delta = lifeExp - lag(lifeExp)) %>% 
+        summarize(worst_le_delta = min(le_delta, na.rm = TRUE)) %>% 
+          top_n(-1, wt = worst_le_delta) %>%
+            arrange(worst_le_delta)
+```
+
+# 2) other basic plots
+
+```{r}
+library(pacman)
+p_load(car)
+p_load(ggsci)
+```
+
+## prepare data
+
+```{r}
+# random grades 
+set.seed(100)
+MathGrade <- rnorm(n = 100, mean = 70, sd = 10)
+set.seed(1000)
+ReadingGrade <- rnorm(n = 100, mean = 65, sd = 13)
+
+# where and how they took the test
+TestLocation <- c(rep("Classroom", 50), rep("Home", 50))
+TestFormat <- c(rep("Paper", 25), rep("Electronic", 25), rep("Paper", 25), rep("Electronic", 25))
+students <- data.frame(MathGrade, ReadingGrade, TestLocation, TestFormat)
+
+# devide different conditions 
+PaperTest <- students %>% dplyr::filter(TestFormat == "Paper")
+ElectronicTest <- students %>% dplyr::filter(TestFormat == "Electronic")
+Classroom <- students %>% dplyr::filter(TestLocation == "Classroom")
+Home <- students %>% dplyr::filter(TestLocation == "Home")
+
+# condition with 2 constraints 
+PaperTestHome <- students %>% dplyr::filter(TestFormat == "Paper", TestLocation == "Home")
+PaperTestClassroom <- students %>% dplyr::filter(TestFormat == "Paper", TestLocation == "Classroom")
+ElectronicTestHome <- students %>% dplyr::filter(TestFormat == "Electronic", TestLocation == "Home")
+ElectronicTestClassroom <- students %>%  dplyr::filter(TestFormat == "Electronic", TestLocation =="Classroom")
+```
+
+## plots
+
+```{r}
+plot(students$MathGrade, students$ReadingGrade, 
+     main = "Math grade vs. Reading grade",
+     sub = "All conditions", 
+     xlab = "Math grade", 
+     ylab = "Reading grade",
+     xlim = c(40, 100), 
+     ylim = c(40, 100), 
+     frame.plot = FALSE)
+
+# car one is power up 
+car::scatterplot(ReadingGrade ~ MathGrade, 
+                 data = students, 
+                 smooth = list(degree = 2, style = "none"))
+```
+
+multiple plots with par
+
+```{r}
+main_title <- "Math grade vs. Reading grade"
+xlab <- "Math grade"
+ylab <- "Reading grade"
+
+op <- par(mfrow = c(2, 2))
+
+#paper test 
+plot(PaperTest$MathGrade, PaperTest$ReadingGrade,
+     main = main_title,
+     sub = "Paper Test", 
+     xlab = xlab, ylab = ylab, 
+     xlim = c(0, 100), ylim = c(0, 100))
+
+#electronic test 
+plot(ElectronicTest$MathGrade, ElectronicTest$ReadingGrade, 
+     main = main_title,
+     sub = "Electronic Test", 
+     xlab = xlab, ylab = ylab, 
+     xlim = c(0,100), ylim = c(0, 100))
+
+#classroom test 
+plot(Classroom$MathGrade, Classroom$ReadingGrade, 
+     main = main_title,
+     sub = "Classroom", 
+     xlab = xlab, ylab = ylab, 
+     xlim = c(0,100), ylim = c(0, 100))
+
+#classroom test 
+plot(Home$MathGrade, Home$ReadingGrade, 
+     main = main_title,
+     sub = "Home", 
+     xlab = xlab, ylab = ylab, 
+     xlim = c(0,100), ylim = c(0, 100))
+
+par(op) #reset the global paramters 
+```
+
+## addons
+
+```{r}
+plot(PaperTest$MathGrade, PaperTest$ReadingGrade,
+     main = main_title,
+     sub = "Paper Test", 
+     xlab = xlab, ylab = 
+     ylab, xlim = c(0,100), ylim = c(0, 100))
+
+#add points to an existing plot
+points(ElectronicTest$MathGrade, ElectronicTest$ReadingGrade, 
+       main = main_title, 
+       pch = 2, 
+       col = "blue")
+
+# add a legend 
+legend("topleft", 
+       legend = c("Paper Test", "Electronic Test"),
+       col = c("Black", "Blue"), 
+       pch = c(1, 2))
+```
+
+## scatter plot matrices
+
+```{r}
+my_cols <- c("#00AFBB", "#E7B800", "#FC4E07")
+
+X <- iris %>% dplyr::select(-Species)
+
+pairs(X, pch=19, lower.panel=NULL, cex=0.5, col=my_cols[iris$Species])
+```
+
+## boxplots
+
+```{r}
+mm <- as_tibble(morley)
+
+#make factors 
+mm$Expt <- factor(mm$Expt)
+mm$Run <- factor(mm$Run)
+```
+
+```{r}
+plot(Speed ~ Expt, data = mm, main = "Speed of Light Data", xlab = "Experiment No.")
+#without outliers
+boxplot(Speed ~ Expt, data = mm, frame = FALSE, outline = FALSE, main = "Michelson Speed of light data", xlab = "Experiment")
+```
+
+## strip charts
+
+```{r}
+stripchart(Speed ~ Expt, data = mm, 
+           pch = 1:5, col = 1:5, 
+           vertical = TRUE,
+           method = "jitter",
+           main = "Speed by Experiment", xlab = "Experiment")
+```
+
+## barplots
+
+```{r}
+# consider only the 1st three rows, to simplify
+x <- VADeaths[1:3, "Rural Male"]
+# basic bar plot
+barplot(x, 
+        col = c("#999999", "#E69F00", "#56B4E9"),
+        main = "Death rates in Virginia",
+        xlab = "Age group", 
+        ylab = "Rate",
+        horiz = TRUE)
+```
+
+stacked bar plots
+
+```{r}
+# colors 
+palette <- ggsci::pal_startrek()
+my_cols <- palette(5)
+op <- par(mfrow = c(1, 2))
+
+
+barplot(VADeaths, col = my_cols)
+legend("topleft", legend = rownames(VADeaths), fill = my_cols, box.lty = 0, cex = 0.8)
+
+barplot(VADeaths, col = my_cols, beside = TRUE)
+legend("topleft", legend = rownames(VADeaths), fill = my_cols, box.lty = 0, cex = 0.8)
+```
+
+## line plots
+
+```{r}
+# data generation
+x <- seq(1, 10)
+y1 <- x * x
+y2 <- 2 * y1
+op <- par(mfrow = c(1, 2))
+
+# stair steps plot
+plot(x, y1, type = "S", xlab = "x", ylab = "y")
+
+# con le palline
+plot(x, y1, type = "b", pch = 19, col = "darkorange", xlab = "x", ylab = "y")
+lines(x, y2, pch = 18, type = "b", col = "darkred", lty = 2)
+legend("topleft", legend = c("x^2", "2x^2"), col = c("blue",
+    "darkred"), lty = 1:2, lwd = 2, cex = 0.8)
+```
+
+## histogram and density plots
+
+```{r}
+x <- students$MathGrade
+
+hist(x, col = "steelblue", breaks = 20)
+
+dens <- density(x)
+plot(dens, col = "blue", main = "Density of Math grades") # a filled version using polygon():
+polygon(dens, col = "blue")
+
+```
+
+## QQplots
+
+```{r}
+
+data(faithful)
+x <- as_tibble(faithful) 
+
+lm_fit <- lm(eruptions ~ waiting, data = x) 
+summary(lm_fit)
+
+qqnorm(resid(lm_fit), main = "Residuals rankit plot")
+qqline(resid(lm_fit))
+```
+
+## dot charts
+
+```{r}
+as_tibble(mtcars)
+x <- mtcars %>% dplyr::arrange(mpg)
+```
+
+```{r}
+# group by 'cyl' and color groups
+grps <- as.factor(x$cyl)
+# select the required number of colors from a custom
+# palette
+my_cols <- (ggsci::pal_futurama())(nlevels(grps))
+dotchart(x$mpg, 
+         labels = rownames(x), 
+         groups = grps, 
+         gcolor = my_cols,
+         color = my_cols[grps], 
+         cex = 0.6, 
+         pch = 19, 
+         xlab = "mpg")
+```
+
+# ggplot 1
+
+## preworkout
+
+```{r}
+library(pacman)
+p_load(tidyverse)
+
+options(scipen = 999) # turn off scientific notation 
+data("midwest", package = "ggplot2")
+```
+
+## plotting basic
+
+### 1) set plotting table and select the data you want
+
+then add pounts aes() is used to tell the graph which part of the dataset we are interested in
+
+```{r}
+par(mfrow = c(2, 2))
+
+g<-ggplot(midwest, aes(x = area, y = poptotal)) +
+      geom_point(aes(col=state), size=3)+# add points with a different color for each state 
+      geom_smooth(method = "lm") # add an interpolation line 
+
+```
+
+### 2) adjust X and Y axis limit
+
+we have 2 option here, the first zooms and consider for regression only the point displayed while the seocnd one only zooms but remember of the outliers
+
+```{r}
+gx <- g + xlim(c(0,0.1)) + ylim(c(0,1000000)) # deletes all the points outiside limits 
+
+g2 <- g + coord_cartesian(xlim = c(0,0.1) , ylim= c(0,1000000) )# only zooms in 
+
+
+```
+
+### 3) change title and labels
+
+```{r}
+g3 <- g2 + labs(title = " Area vs Population", 
+          subtitle = "From midwest dataset",
+          y= "population",
+          x= "Area",
+          caption = "midwest demographic")
+
+```
+
+### 4) change color palette 
+```{r}
+g4 <- g3 + scale_color_brewer(palette = "Set3")
+```
+
+### 5) change X axis texts and ticks
+scale_x_continous is for changing the ticks and the text in the axis even in a complex way using functions
+```{r}
+g5 <- g4 + scale_x_continuous(breaks = seq(0, 0.1, 0.01), labels = sprintf("%1.2f%%", seq(0, 0.1, 0.01))) + 
+           scale_y_continuous(breaks = seq(0,1000000, 200000), labels = function(x){paste0(x/1000, 'K')})
+g5
+```
+
+
+## cusotmize look and feel 
+
+### use themes
+
+```{r}
+gg <- g+scale_x_continuous(breaks = seq(0, 0.1, 0.01))
+
+gg + theme_bw() + labs(subtitle = "BW Theme")
+gg + theme_classic()+ labs(subtitle = "classic")
+
+```
+
+### change point color and size
+
+
+```{r}
+gg<- ggplot(midwest, aes(x = area, y = poptotal)) + # canvas
+     geom_point(aes(col = state, size = popdensity))+ # pointswith different color and size
+     geom_smooth(method = "loess", se= F)+ # line 
+     xlim(c(0, 0.1)) + ylim(c(0,500000))+ # zoom
+     labs(title = "Area Vs Population", y= "Population", x = "Area", caption = "midwest")
+
+plot(gg)
+```
+
+
+### customize plot and axis title text
+
+```{r}
+g4 +  theme(plot.title=element_text(size=20, face="bold", family="Roboto", color="tomato",  hjust=0.5, lineheight=1.2),  # title
+           plot.subtitle=element_text(size=15,  family="Roboto",face="bold", hjust=0.5),  # 
+           plot.caption=element_text(size=15),  # caption
+           
+           axis.title.x=element_text(vjust=0,  size=15),  # X axis title
+           axis.title.y=element_text(size=15),  # Y axis title
+           
+           axis.text.x=element_text(size=10,  angle = 30, vjust=.5),  # X axis text
+           axis.text.y=element_text(size=10))  # Y axis text
+```
+
+### modify legend 
+
+```{r}
+gg + labs(color = "State", size = "Density") 
+gg + scale_color_discrete(name = "State") + scale_size_continuous(name = "Density", guide = F) # giude F hide the legend 
+
+# manually seleect the colours
+gg + scale_color_manual(name = "State", 
+                        labels = c("Illinois", "Indiana", "Michigan", "Ohio", "winsconsin"),
+                values = c(IL = "blue",IN = "red", MI = "green", OH = "brown", WI = "orange"))
+
+# change the order of the legends
+gg + guides(colour = guide_legend(order = 1), size = guide_legend(order = 2))
+```
+### text and label annotations
+
+
+```{r}
+midwest_sub <- midwest %>% dplyr::filter(poptotal > 300000) # take only big counties 
+midwest_sub$large_county <- ifelse(midwest_sub$poptotal > 300000, midwest_sub$county, "") # create a new field if large 
+
+gg + geom_text(aes(label = large_county), size=2, data= midwest_sub) + # add text only to them 
+    theme(legend.position = "none")
+
+# more pretty text 
+p_load(ggrepel)
+
+gg + geom_label_repel(aes(label = large_county), size =2, data = midwest_sub) +
+     theme(legend.position = "none")
+```
+### some tranformations 
+```{r}
+gg + coord_flip()
+gg + scale_x_reverse() + scale_y_reverse()
+```
+## multiple plots 
+
+```{r}
+data(mpg, package = "ggplot2")
+```
+
+basic plot 
+```{r}
+g <- ggplot(mpg, aes(x= displ, y = hwy)) + geom_point() + labs(title = "hwy vs displ") +
+     geom_smooth(method = "lm", se = F) + theme_bw()
+plot(g)
+```
+oi can break this into small plot 
+
+```{r}
+g + facet_wrap(~class, nrow = 3) + labs(title = "hwy vs displ")
+g + facet_wrap(~class, scales = "free") + labs(title = "hwy vs displ")
+g + facet_grid(manufacturer ~ class)
+```
+
+# ggplot 2
+```{r}
+p_load(tidyverse)
+```
+
+there are 8 categories of plotsthat cover the biggest part of them 
+
+## Correlation 
+study how correlated two variables are, usually we use a scatter plot, the geom smooth draws smooting line 
+
+```{r}
+theme_set(theme_bw())  # global preset, bw theme
+data("midwest", package = "ggplot2")
+# midwest <- read.csv('http://goo.gl/G1K41K') # bkup data
+# source
+
+# Scatterplot
+gg <- ggplot(midwest, aes(x = area, y = poptotal)) + geom_point(aes(col = state,
+    size = popdensity)) + geom_smooth(method = "loess", se = F) +
+    xlim(c(0, 0.1)) + ylim(c(0, 5e+05)) + labs(subtitle = "Area Vs Population",
+    y = "Population", x = "Area", title = "Scatterplot", caption = "Source: midwest")
+
+plot(gg)
+
+```
+### scatterplot with Encircling 
+do a circle around some points you want to highlight
+
+```{r}
+p_load(ggalt)
+# select a subset of county filtering 
+midwest_select <- midwest %>% dplyr::filter(poptotal > 350000,
+                                            poptotal <= 500000,
+                                            area > 0.01,
+                                            area < 0.1)
+
+# Plot
+ggplot(midwest, aes(x=area, y=poptotal)) + 
+    geom_point(aes(col=state, size=popdensity)) + # draw points
+    geom_smooth(method="loess", se=FALSE) + # draw smoothing line
+    xlim(c(0, 0.1)) + 
+    ylim(c(0, 500000)) + 
+    geom_encircle(aes(x=area, y=poptotal), 
+                  data=midwest_select, # filtered dataframe
+                  color="red", 
+                  size=2, 
+                  expand=0.08) + # expand the curve a little bit outside the points
+    labs(subtitle="Area Vs Population", 
+         y="Population", 
+         x="Area", 
+         title="Scatterplot + Encircle", 
+         caption="Source: midwest")
+```
+### Jitter plot 
+whrn the data is integers we may have many overlapping poits, using jitter we can add some random noise to see all the points 
+
+```{r}
+data(mpg, package = "ggplot2")  # alternate source: 'http://goo.gl/uEeRGu')
+theme_set(theme_bw())
+g <- ggplot(mpg, aes(cty, hwy))
+
+g +geom_jitter(width = 0.5, size = 1) + 
+      geom_smooth(method = "lm",se = FALSE) + 
+      labs(subtitle = "mpg: city vs highway mileage", y = "hwy", x = "cty", title = "Jittered Points")
+```
+### counts chart 
+instead of adding noise we can do a bigger point when ther is overlapping 
+
+```{r}
+g + geom_count(col = "tomato3", show.legend = TRUE) + 
+    labs(subtitle = "mpg: city vs highway mileage", y = "hwy", x = "cty", title = "Counts Plot")
+```
+
+### Bubble plot 
+scatter is for comparing the relationship between two continuos variables while a bubble if you want the relationship whithin the group 
+based on : 1) a categorical value (color) 2) a contonuos variable ( size)
+
+```{r}
+# select 4 manufacturers 
+mpg_select <- mpg %>%
+    dplyr::filter(manufacturer %in% c("audi", "ford", "honda",
+        "hyundai"))
+
+# basic plot 
+g <- ggplot(mpg_select, aes(displ, cty)) + labs(subtitle = "mpg: City Mileage vs. Displacement", title = "Bubble chart")
+
+
+g + geom_jitter(aes(col = manufacturer, size = hwy)) + # col is manifacturer while size is the highway mileahe 
+    geom_smooth(aes(col = manufacturer), method = "lm", se = F) # add line 
+```
+### marginal histogram/ boxplot 
+relationship and distribution in the same graph
+```{r}
+p_load(ggExtra)
+
+g <- ggplot(mpg, aes(cty, hwy)) + 
+     geom_count(show.legend = FALSE) + # size 
+     geom_smooth(method = "lm", se = F) # line 
+
+ggMarginal(g, type = "histogram", fill = "transparent") # add marginal  distribution
+ggMarginal(g, type = "boxplot", fill = "transparent")
+ggMarginal(g, type = "density", fill = "transparent")
+ggMarginal(g, type = "densigram")  # density + histogram
+
+
+```
+### correlogram
+Correlograms let you examine the correlation of multiple continuous variables present in the same dataframe
+
+```{r}
+p_load(ggcorrplot)
+
+data(mtcars)
+dim(mtcars)
+#> [1] 32 11
+# compute the correlation matrix
+corr <- round(cor(mtcars), 1)
+
+# plot
+ggcorrplot(corr, 
+           hc.order = F, # order the corr. matrix by hierarchical clustering
+           type = "lower", 
+           lab = TRUE, # add corr. coefficients
+           lab_size = 3, 
+           method="circle", 
+           colors = c("tomato2", "white", "springgreen3"), # colors for low, mid, high correlation values
+           title="Correlogram of mtcars", 
+           ggtheme=theme_bw)
+```
+
+
+## Deviation 
+compare variation in values between small number of items 
+
+### diverging bars 
+```{r}
+data("mtcars")
+# data prep
+mtcars <- tibble::rownames_to_column(mtcars, var="car name") %>% # create new column for car names
+          mutate(mpg_z=round(scale(mpg), 2), # compute normalized mpg
+                 mpg_type=ifelse(mpg_z < 0, "below", "above"),) %>%  # above / below avg flag
+          arrange(mpg_z)# sort
+
+mtcars$`car name` <- factor(mtcars$`car name`, levels = mtcars$`car name`)  # convert to factor to retain sorted order in plot.
+
+# diverging bars
+ggplot(mtcars, aes(x=`car name`, y=mpg_z, label=mpg_z)) + 
+    geom_bar(stat="identity", aes(fill=mpg_type), width=.5)  +
+    scale_fill_manual(name="Mileage", 
+                      labels = c("Above Average", "Below Average"), 
+                      values = c("above"="#00ba38", "below"="#f8766d")) + 
+    labs(subtitle="Normalized mileage from mtcars", 
+         title= "Diverging Bars") + 
+    coord_flip() +
+    theme_bw()
+```
+
+### diverging lollipop chart 
+
+```{r}
+ggplot(mtcars, aes(x = `car name`, y = mpg_z, label = mpg_z)) +
+       geom_point(stat = "identity", fill = "black", size = 6) +
+       geom_segment(aes(y = 0, x = `car name`, yend = mpg_z, xend = `car name`),color = "blue") + 
+       geom_text(color = "white", size = 2) +
+       labs(title = "Diverging Lollipop Chart", subtitle = "Normalized mileage from mtcars: Lollipop") +
+       ylim(-2.5, 2.5) + coord_flip() + theme_bw()
+```
+### diverging bot plot 
+```{r}
+ggplot(mtcars, aes(x = `car name`, y = mpg_z, label = mpg_z)) +
+    geom_point(stat = "identity", aes(col = mpg_type), size = 6) +
+    scale_color_manual(name = "Mileage", labels = c("Above Average", "Below Average"), values = c(above = "#00ba38", below = "#f8766d")) +
+    geom_text(color = "white", size = 2) + 
+    labs(title = "Diverging Dot Plot", subtitle = "Normalized mileage from 'mtcars': Dotplot") +
+    ylim(-2.5, 2.5) + coord_flip() + theme_bw()
+```
+
+### area chart 
+```{r}
+data("economics", package = "ggplot2")
+```
+
+```{r}
+# Compute %Returns
+economics$returns_perc <- c(0, diff(economics$psavert)/economics$psavert[-length(economics$psavert)])
+
+
+# Create break points and labels for axis ticks
+brks <- economics$date[seq(1, length(economics$date), 12)]
+lbls <- lubridate::year(brks)
+
+# plot the 1st 100 observations
+ggplot(economics[1:100, ], aes(date, returns_perc)) + geom_area() +
+    scale_x_date(breaks = brks, labels = lbls) + labs(title = "Area Chart",
+    subtitle = "Percentage Returns for Personal Savings", y = "% Returns for Personal savings",
+    caption = "Source: economics dataset") + theme_bw() + theme(axis.text.x = element_text(angle = 90))
+```
+
+
+## ranking 
+A ranking plot is used to compare the position or performance of multiple items with respect to each other. Actual values matter somewhat less than the ranking.
+
+### ordered bar chart 
+```{r}
+# data prep: group mean city mileage by manufacturer.
+cty_mpg <- mpg %>% group_by(make = manufacturer) %>% summarise(mileage = mean(cty))
+cty_mpg <- arrange(cty_mpg, mileage)  # sort
+cty_mpg$make <- factor(cty_mpg$make, levels = cty_mpg$make)  # refactor to retain the order in plot.
+
+# Draw plot
+ggplot(cty_mpg, aes(x = make, y = mileage)) + 
+    geom_bar(stat = "identity", width = 0.5, fill = "tomato3") + labs(title = "Ordered Bar Chart",
+    subtitle = "Make Vs Avg. Mileage", caption = "source: mpg") +
+    theme_bw() + theme(axis.text.x = element_text(angle = 65,
+    vjust = 0.6))
+
+```
+### lollipop chart 
+
+```{r}
+# Draw plot
+ggplot(cty_mpg, aes(x = make, y = mileage)) + geom_point(size = 3) +
+    geom_segment(aes(x = make, xend = make, y = 0, yend = mileage)) +
+    labs(title = "Lollipop Chart", subtitle = "Make Vs Avg. Mileage",
+        caption = "source: mpg") + theme_bw() + theme(axis.text.x = element_text(angle = 65,
+    vjust = 0.6))
+```
+### dot plot 
+
+```{r}
+ggplot(cty_mpg, aes(x=make, y=mileage)) + 
+    geom_point(col="tomato2", size=3) + # draw points
+    geom_segment(aes(x=make, 
+                     xend=make, 
+                     y=min(mileage), 
+                     yend=max(mileage)), 
+                 linetype="dashed", # draw dashed lines
+                 size=0.1) +   
+    labs(title="Dot Plot", 
+         subtitle="Make Vs Avg. Mileage", 
+         caption="source: mpg") +  
+    coord_flip() +
+    theme_classic()
+```
+### slope chart 
+
+```{r}
+library(scales)
+
+# data prep
+dataf <- read.csv("https://raw.githubusercontent.com/selva86/datasets/master/gdppercap.csv")
+colnames(dataf) <- c("continent", "1952", "1957")
+# prepare labels
+left_label <- paste(dataf$continent, round(dataf$`1952`), sep=", ")
+right_label <- paste(dataf$continent, round(dataf$`1957`), sep=", ")
+dataf <- dataf %>% mutate(class=ifelse(`1957` - `1952` < 0, "red", "green"))
+
+p <- ggplot(dataf) + geom_segment(aes(x=1, xend=2, y=`1952`, yend=`1957`, col=class), size=.75, show.legend=F) + 
+    geom_vline(xintercept=1, linetype="dashed", size=.1) + 
+    geom_vline(xintercept=2, linetype="dashed", size=.1) +
+    scale_color_manual(labels = c("Up", "Down"), 
+                       values = c("green"="#00ba38", "red"="#f8766d")) +  # color of lines
+    labs(x="", y="Mean GdpPerCap") +  # Axis labels
+    xlim(.5, 2.5) + ylim(0,(1.1*(max(dataf$`1952`, dataf$`1957`)))) +
+    theme_classic()
+
+# add texts
+p <- p + geom_text(label=left_label, y=dataf$`1952`, x=rep(1, NROW(dataf)), hjust=1.1, size=3.5)
+p <- p + geom_text(label=right_label, y=dataf$`1957`, x=rep(2, NROW(dataf)), hjust=-0.1, size=3.5)
+p <- p + geom_text(label="Time 1", x=1, y=1.1*(max(dataf$`1952`, dataf$`1957`)), hjust=1.2, size=5)  # title
+p <- p + geom_text(label="Time 2", x=2, y=1.1*(max(dataf$`1952`, dataf$`1957`)), hjust=-0.1, size=5)  # title
+
+# Minify theme
+p + theme(panel.background = element_blank(), 
+          panel.grid = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text.x = element_blank(),
+          panel.border = element_blank(),
+          plot.margin = unit(c(1,2,1,2), "cm"))
+```
+### dumbdell plot 
+
+```{r}
+library(ggalt)
+
+health <- read.csv("https://raw.githubusercontent.com/selva86/datasets/master/health.csv")
+health$Area <- factor(health$Area, levels = as.character(health$Area))  # for the correct ordering of the dumbbells
+
+ggplot(health, aes(x = pct_2014, xend = pct_2013, y = Area, group = Area)) +
+    geom_dumbbell(color = "#a3c4dc", size = 0.75, colour_xend = "#0e668b") +
+    scale_x_continuous(label = scales::percent) + labs(x = NULL,
+    y = NULL, title = "Dumbbell Chart", subtitle = "Pct Change: 2013 vs 2014",
+    caption = "Source: https://github.com/hrbrmstr/ggalt") +
+    theme_classic() + theme(plot.title = element_text(hjust = 0.5,
+    face = "bold"), plot.background = element_rect(fill = "#f7f7f7"),
+    panel.background = element_rect(fill = "#f7f7f7"), panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_blank(), panel.grid.major.x = element_line(),
+    axis.ticks = element_blank(), legend.position = "top", panel.border = element_blank())
+```
+
+
+## Distribution 
+
+### histogram
+
+```{r}
+theme_set(theme_classic()) # set the theme beforehand
+
+# histogram on a continuous (numeric) variable
+g <- ggplot(mpg, aes(displ)) + scale_fill_brewer(palette = "Spectral")
+
+g + geom_histogram(aes(fill=class), 
+                   binwidth = .1, # change binwidth
+                   col="black", 
+                   size=.1) +  
+    labs(title="Histogram with Auto Binning", 
+         subtitle="Engine Displacement across Vehicle Classes") 
+```
+```{r}
+g + geom_histogram(aes(fill=class), 
+                   bins=5, # change number of bins
+                   col="black", 
+                   size=.1) +
+  labs(title="Histogram with Fixed Bins", 
+       subtitle="Engine Displacement across Vehicle Classes") 
+```
+
+```{r}
+theme_set(theme_classic())
+
+# Histogram on a Categorical variable
+g <- ggplot(mpg, aes(manufacturer))
+
+g + geom_bar(aes(fill = class), width = 0.5) + theme(axis.text.x = element_text(angle = 65,
+    vjust = 0.6)) + labs(title = "Histogram on Categorical Variable",
+    subtitle = "Manufacturer across Vehicle Classes")
+```
+
+### density plot 
+
+```{r}
+theme_set(theme_classic())
+
+g <- ggplot(mpg, aes(cty))
+
+g + geom_density(aes(fill = factor(cyl)), alpha = 0.8) + labs(title = "Density plot",
+    subtitle = "City Mileage Grouped by Number of cylinders",
+    caption = "Source: mpg", x = "City Mileage", fill = "# Cylinders")
+```
+### box plot 
+
+```{r}
+theme_set(theme_classic())
+
+g <- ggplot(mpg, aes(class, cty))
+
+g + geom_boxplot(varwidth = TRUE, fill = "plum") + labs(title = "Box plot",
+    subtitle = "City Mileage grouped by Class of vehicle", caption = "Source: mpg",
+    x = "Class of Vehicle", y = "City Mileage")
+
+
+g + geom_boxplot(aes(fill = factor(cyl))) + theme(axis.text.x = element_text(angle = 65,
+    vjust = 0.6)) + labs(title = "Box plot", subtitle = "City Mileage grouped by Class of vehicle",
+    caption = "Source: mpg", x = "Class of Vehicle", y = "City Mileage")
+```
+### dot + box plot 
+
+```{r}
+theme_set(theme_bw())
+
+g <- ggplot(mpg, aes(manufacturer, cty))
+
+g + geom_boxplot() + geom_dotplot(binaxis = "y", stackdir = "center",
+    dotsize = 0.5, fill = "red") + theme(axis.text.x = element_text(angle = 65,
+    vjust = 0.6)) + labs(title = "Box plot + Dot plot", subtitle = "City Mileage vs Class: Each dot represents 1 row in source data",
+    caption = "Source: mpg", x = "Class of Vehicle", y = "City Mileage")
+
+g + geom_boxplot(outlier.color = NA) + geom_point(position = position_jitter(width = 0.2),
+    size = 1, color = "red") + theme(axis.text.x = element_text(angle = 65,
+    vjust = 0.6)) + labs(title = "Box plot + Dot plot", subtitle = "City Mileage vs Class: Each dot represents 1 row in source data",
+    caption = "Source: mpg", x = "Class of Vehicle", y = "City Mileage")
+```
+### tufte boxplot
+
+```{r}
+p_load(ggthemes)
+theme_set(theme_tufte())
+
+g <- ggplot(mpg, aes(manufacturer, cty))
+
+g + geom_tufteboxplot() + theme(axis.text.x = element_text(angle = 65,
+    vjust = 0.6)) + labs(title = "Tufte Styled Boxplot", subtitle = "City Mileage grouped by Class of vehicle",
+    caption = "Source: mpg", x = "Class of Vehicle", y = "City Mileage")
+```
+### violin plot 
+```{r}
+theme_set(theme_bw())
+
+g <- ggplot(mpg, aes(class, cty))
+
+g + geom_violin() + labs(title = "Violin plot", subtitle = "City Mileage vs Class of vehicle",
+    caption = "Source: mpg", x = "Class of Vehicle", y = "City Mileage")
+```
+### population piramid 
+```{r}
+options(scipen = 999)  # turns of scientific notations like 1e+40
+
+# get data
+email_campaign_funnel <- read.csv("https://raw.githubusercontent.com/selva86/datasets/master/email_campaign_funnel.csv")
+```
+
+```{r}
+# X axis breaks 
+brks <- seq(-15000000, 15000000, 5000000)
+# X axis labels
+lbls <- paste0(as.character(c(seq(15, 0, -5), seq(5, 15, 5))), "m")
+
+# pyramid
+ggplot(email_campaign_funnel, aes(x = Stage, y = Users, fill = Gender)) + # Fill column
+    geom_bar(stat = "identity", width = .6) +  # draw the bars
+    scale_y_continuous(breaks = brks,   # Breaks
+                       labels = lbls) + # Labels
+    coord_flip() +  # Flip axes
+    labs(title="Email Campaign Funnel") +
+    theme_tufte() +  # Tufte theme from ggthemes
+    theme(plot.title = element_text(hjust = .5), # Center plot title
+          axis.ticks = element_blank()) +
+    scale_fill_brewer(palette = "Dark2")  # Color palette
+```
+## Composition 
+
+### waffle chart 
+
+```{r}
+var <- mpg$class  # categorical data 
+table(var)  # original category distribution
+#> var
+#>    2seater    compact    midsize    minivan     pickup subcompact        suv 
+#>          5         47         41         11         33         35         62
+# data prep
+nrows <- 10  # our waffle chart will be a 10x10 square
+dataf <- expand.grid(y = 1:nrows, x = 1:nrows)
+categ_table <- round(table(var) * ((nrows * nrows)/(length(var))))  # transform the category distribution so that the counts sum up to 100
+categ_table
+#> var
+#>    2seater    compact    midsize    minivan     pickup subcompact        suv 
+#>          2         20         18          5         14         15         26
+# > 2seater compact midsize minivan pickup subcompact suv >
+# 2 20 18 5 14 15 26
+sum(categ_table)
+#> [1] 100
+
+dataf$category <- factor(rep(names(categ_table), categ_table))
+# NOTE: if sum(categ_table) is not 100 (i.e. nrows^2), it
+# will need adjustment to make the sum to 100.
+
+# waffle chart
+ggplot(dataf, aes(x = x, y = y, fill = category)) + geom_tile(color = "black",
+    size = 0.5) + scale_x_continuous(expand = c(0, 0)) + scale_y_continuous(expand = c(0,
+    0), trans = "reverse") + scale_fill_brewer(palette = "Set3") +
+    labs(title = "Waffle Chart", subtitle = "'Class' of vehicles",
+        caption = "Source: mpg") + theme(panel.border = element_rect(size = 2),
+    plot.title = element_text(size = rel(1.2)), axis.text = element_blank(),
+    axis.title = element_blank(), axis.ticks = element_blank(),
+    legend.title = element_blank(), legend.position = "right")
+```
+### pie chart 
+```{r}
+theme_set(theme_classic())
+
+# Source: Frequency table
+dataf <- as.data.frame(table(mpg$class))
+colnames(dataf) <- c("class", "freq")
+
+pie <- ggplot(dataf, aes(x = "", y = freq, fill = factor(class))) +
+    geom_bar(width = 1, stat = "identity") + theme(axis.line = element_blank(),
+    plot.title = element_text(hjust = 0.5)) + labs(fill = "class",
+    x = NULL, y = NULL, title = "Pie Chart of class", caption = "Source: mpg")
+
+# what we got so far
+pie + coord_polar(theta = "y", start = 0) + theme(axis.ticks = element_blank(),
+    axis.text = element_blank(), axis.title = element_blank(),
+    panel.grid = element_blank())
+```
+### treemap
+
+```{r}
+p_load(treemapify)
+ggplot(G20, aes(area = gdp_mil_usd, fill = hdi, label = country, subgroup = region)) +
+       geom_treemap() + geom_treemap_subgroup_border() +
+       geom_treemap_subgroup_text(place = "centre", grow = T, alpha = 0.5,
+       colour = "black", fontface = "italic", min.size = 0) +
+       geom_treemap_text(colour = "white", place = "topleft", reflow = T)
+
+
+ggplot(G20, aes(area = 1, label = country, subgroup = hemisphere,
+    subgroup2 = region, subgroup3 = econ_classification)) + geom_treemap() +
+    geom_treemap_subgroup3_border(colour = "blue", size = 1) +
+    geom_treemap_subgroup2_border(colour = "white", size = 3) +
+    geom_treemap_subgroup_border(colour = "red", size = 5) +
+    geom_treemap_subgroup_text(place = "middle", colour = "red",
+        alpha = 0.5, grow = T) + geom_treemap_subgroup2_text(colour = "white",
+    alpha = 0.5, fontface = "italic") + geom_treemap_subgroup3_text(place = "top",
+    colour = "blue", alpha = 0.5) + geom_treemap_text(colour = "white",
+    place = "middle", reflow = T)
+```
+### bar chart 
+
+```{r}
+# data prep: frequency table
+freqtable <- table(mpg$manufacturer)
+dataf <- as.data.frame.table(freqtable) %>%
+    rename(manufacturer = Var1)
+
+```
+
+```{r}
+theme_set(theme_classic())
+g <- ggplot(dataf, aes(manufacturer, Freq))
+g + geom_bar(stat = "identity", width = 0.5, fill = "tomato2") +
+    labs(title = "Bar Chart", subtitle = "Manufacturer of vehicles",
+        caption = "Source: Frequency of Manufacturers from 'mpg' dataset") +
+    theme(axis.text.x = element_text(angle = 65, vjust = 0.6))
+
+
+g <- ggplot(mpg, aes(manufacturer))
+g + geom_bar(aes(fill=class), width = 0.5) + # fill by class
+    theme(axis.text.x = element_text(angle=65, vjust=0.6)) +
+    labs(title="Categorywise Bar Chart", 
+         subtitle="Manufacturer of vehicles", 
+         caption="Source: Manufacturers from 'mpg' dataset")
+```
+## Change
+
+### from a time serie object 
+
+```{r}
+p_load(ggfortify)
+p_load(tidyverse)
+p_load(zoo)
+# load data
+data("AirPassengers")
+# check they are a ts object
+class(AirPassengers)
+```
+
+```{r}
+theme_set(theme_classic())
+
+autoplot(AirPassengers) + labs(title = "AirPassengers") + theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+### from a datagframe
+
+```{r}
+data(economics)
+
+# (re)compute %Returns
+economics$returns_perc <- c(0, diff(economics$psavert)/economics$psavert[-length(economics$psavert)])
+
+theme_set(theme_classic())
+
+# Allow Default X Axis Labels
+ggplot(economics, aes(x = date)) + geom_line(aes(y = returns_perc)) +
+    labs(title = "Time Series Chart", subtitle = "Returns Percentage from 'Economics' Dataset",
+        caption = "Source: Economics", y = "Returns %")
+```
+
+### from a monthly time series 
+```{r}
+library(lubridate)
+theme_set(theme_bw())
+
+# consider a 24-month timeframe
+economics_m <- economics[1:24, ]
+# labels and breaks for X axis text
+lbls <- paste0(month.abb[month(economics_m$date)], " ", lubridate::year(economics_m$date)) # month.abb is a built-in constant
+brks <- economics_m$date
+
+head(brks)
+#> [1] "1967-07-01" "1967-08-01" "1967-09-01" "1967-10-01" "1967-11-01"
+#> [6] "1967-12-01"
+head(lbls)
+#> [1] "Jul 1967" "Aug 1967" "Sep 1967" "Oct 1967" "Nov 1967" "Dec 1967"
+
+# plot
+ggplot(economics_m, aes(x=date)) + 
+    geom_line(aes(y=returns_perc)) + 
+    labs(title="Monthly Time Series", 
+         subtitle="Returns Percentage from Economics Dataset", 
+         caption="Source: Economics", 
+         y="Returns %") +  # title and caption
+    scale_x_date(labels = lbls, 
+                 breaks = brks) +  # change to monthly ticks and labels
+    theme(axis.text.x = element_text(angle = 90, vjust=0.5),  # rotate x axis text
+          panel.grid.minor = element_blank())  
+```
+## from a yearly time series 
+
+```{r}
+theme_set(theme_bw())
+
+# 7.5 years:
+economics_y <- economics[1:90, ]
+
+# labels and breaks for X axis text
+brks <- economics_y$date[seq(1, length(economics_y$date), 12)] # one break at each year
+lbls <- lubridate::year(brks)
+
+# plot
+ggplot(economics_y, aes(x=date)) + 
+    geom_line(aes(y=returns_perc)) + 
+    labs(title="Yearly Time Series", 
+         subtitle="Returns Percentage from Economics Dataset", 
+         caption="Source: Economics", 
+         y="Returns %") +  # title and caption
+    scale_x_date(labels = lbls, 
+                 breaks = brks) +  # change to monthly ticks and labels
+    theme(axis.text.x = element_text(angle = 90, vjust=0.5),  # rotate x axis text
+          panel.grid.minor = element_blank())  # turn off minor grid
+```
+### From Long Data Format: Multiple Time Series in Same Dataframe Column
+```{r}
+data(economics_long, package = "ggplot2")
+head(economics_long)
+```
+
+```{r}
+theme_set(theme_bw())
+# filter & restrict to specific year range
+dataf <- economics_long %>% dplyr::filter(variable %in% c("psavert", "uempmed"),
+                                          lubridate::year(date) %in% c(1967:1981))
+
+table(dataf$variable)
+#> 
+#> psavert uempmed 
+#>     174     174
+
+# labels and breaks for X axis text
+brks <- dataf$date[seq(1, length(dataf$date), 12)] # one break at each year
+lbls <- lubridate::year(brks)
+
+# plot
+ggplot(dataf, aes(x=date)) + 
+    geom_line(aes(y=value, col=variable)) + 
+    labs(title="Time Series of Returns Percentage", 
+         subtitle="Drawn from Long Data format", 
+         caption="Source: Economics", 
+         color=NULL) +  # title and caption
+    scale_x_date(labels = lbls, breaks = brks) +  # change to monthly ticks and labels
+    scale_color_manual(labels = c("psavert", "uempmed"), 
+                       values = c("psavert"="#00ba38", "uempmed"="#f8766d")) +  # line color
+    theme(axis.text.x = element_text(angle = 90, vjust=0.5, size = 8),  # rotate x axis text
+          panel.grid.minor = element_blank())  # turn off minor grid
+```
+
+### From Wide Data Format: Data in Multiple Columns of Dataframe
+
+```{r}
+theme_set(theme_bw())
+
+dataf <- economics %>% dplyr::select(date, psavert, uempmed) %>% 
+    dplyr::filter(lubridate::year(date) %in% c(1967:1981))
+head(dataf)
+```
+
+```{r}
+# labels and breaks for X axis text
+brks <- dataf$date[seq(1, length(dataf$date), 12)]
+lbls <- lubridate::year(brks)
+
+# plot
+ggplot(dataf, aes(x=date)) + 
+  geom_line(aes(y=psavert, col="psavert")) + # 1st line
+  geom_line(aes(y=uempmed, col="uempmed")) + # 2nd line
+  labs(title="Time Series of Returns Percentage", 
+       subtitle="Drawn From Wide Data format", 
+       caption="Source: Economics", y="value") +  # title and caption
+  scale_x_date(labels = lbls, breaks = brks) +  # change to monthly ticks and labels
+  scale_color_manual(name="",
+                     values = c("psavert"="#00ba38", "uempmed"="#f8766d")) +  # line color
+  theme(axis.text.x = element_text(angle = 90, vjust=0.5, size = 8),
+        panel.grid.minor = element_blank())  
+```
+### stacked area chart 
+
+```{r}
+theme_set(theme_bw())
+
+dataf <- economics %>% dplyr::select(date, psavert, uempmed) %>% 
+    dplyr::filter(lubridate::year(date) %in% c(1967:1981))
+
+# labels and breaks for X axis text
+brks <- dataf$date[seq(1, length(dataf$date), 12)]
+lbls <- lubridate::year(brks)
+
+# plot
+ggplot(dataf, aes(x=date)) + 
+    geom_area(aes(y=psavert+uempmed, fill="psavert")) + # 1st "layer"
+    geom_area(aes(y=uempmed, fill="uempmed")) + # 2nd "layer" (plotted over the 1st)
+    labs(title="Area Chart of Returns Percentage", 
+         subtitle="From Wide Data format", 
+         caption="Source: Economics", y="value") +  # title and caption
+    scale_x_date(labels = lbls, breaks = brks) +  # change to monthly ticks and labels
+    scale_fill_manual(name="", 
+                      values = c("psavert"="#00ba38", "uempmed"="#f8766d")) +  # line color
+    theme(panel.grid.minor = element_blank())  # turn off minor grid
+```
+### calendar heatmap
+```{r}
+library(plyr)
+library(scales)
+library(zoo)
+
+dataf <- read.csv("https://raw.githubusercontent.com/selva86/datasets/master/yahoo.csv")  # Yahoo! stock closing price 2007-2016
+dataf$date <- as.Date(dataf$date)  # format date
+dataf <- dataf[dataf$year >= 2012, ]  # filter years
+
+# Create Month Week
+dataf$yearmonth <- as.yearmon(dataf$date)
+dataf$yearmonthf <- factor(dataf$yearmonth)
+dataf <- ddply(dataf, .(yearmonthf), transform, monthweek = 1 +
+    week - min(week))  # compute week number of month
+dataf <- dataf[, c("year", "yearmonthf", "monthf", "week", "monthweek",
+    "weekdayf", "VIX.Close")]
+head(dataf)
+```
+
+```{r}
+ggplot(dataf, aes(monthweek, weekdayf, fill = VIX.Close)) + geom_tile(colour = "white") +
+    facet_grid(year ~ monthf) + scale_fill_gradient(low = "red",
+    high = "green") + labs(x = "Week of Month", y = "", title = "Time-Series Calendar Heatmap",
+    subtitle = "Yahoo Closing Price", fill = "Close")
+```
+
+### slope chart 
+
+```{r}
+theme_set(theme_classic())
+source_df <- read.csv("https://raw.githubusercontent.com/jkeirstead/r-slopegraph/master/cancer_survival_rates.csv")  # Estimates of % survival rates for different tumors
+
+# Define functions. Source:
+# https://github.com/jkeirstead/r-slopegraph Calculates
+# slope graph positions based on Edward Tufte's layout
+tufte_sort <- function(df, x = "year", y = "value", group = "group",
+    min.space = 0.05) {
+    ## First rename the columns for consistency
+    ids <- match(c(x, y, group), names(df))
+    df <- df[, ids]
+    names(df) <- c("x", "y", "group")
+
+    ## Expand grid to ensure every combination has a
+    ## defined value
+    tmp <- expand.grid(x = unique(df$x), group = unique(df$group))
+    tmp <- merge(df, tmp, all.y = TRUE)
+    df <- mutate(tmp, y = ifelse(is.na(y), 0, y))
+
+    ## Cast into a matrix shape and arrange by first column
+    require(reshape2)
+    tmp <- dcast(df, group ~ x, value.var = "y")
+    ord <- order(tmp[, 2])
+    tmp <- tmp[ord, ]
+
+    min.space <- min.space * diff(range(tmp[, -1]))
+    yshift <- numeric(nrow(tmp))
+    ## Start at 'bottom' row Repeat for rest of the rows
+    ## until you hit the top
+    for (i in 2:nrow(tmp)) {
+        ## Shift subsequent row up by equal space so gap
+        ## between two entries is >= minimum
+        mat <- as.matrix(tmp[(i - 1):i, -1])
+        d.min <- min(diff(mat))
+        yshift[i] <- ifelse(d.min < min.space, min.space - d.min,
+            0)
+    }
+
+    tmp <- cbind(tmp, yshift = cumsum(yshift))
+
+    scale <- 1
+    tmp <- melt(tmp, id = c("group", "yshift"), variable.name = "x",
+        value.name = "y")
+    ## Store these gaps in a separate variable so that they
+    ## can be scaled ypos = a*yshift + y
+
+    tmp <- transform(tmp, ypos = y + scale * yshift)
+    return(tmp)
+
+}
+
+plot_slopegraph <- function(df) {
+    ylabs <- subset(df, x == head(x, 1))$group
+    yvals <- subset(df, x == head(x, 1))$ypos
+    fontSize <- 3
+    gg <- ggplot(df, aes(x = x, y = ypos)) + geom_line(aes(group = group),
+        colour = "grey80") + geom_point(colour = "white", size = 8) +
+        geom_text(aes(label = y), size = fontSize, family = "American Typewriter") +
+        scale_y_continuous(name = "", breaks = yvals, labels = ylabs)
+    return(gg)
+}
+
+## Prepare data
+dataf <- tufte_sort(source_df, x = "year", y = "value", group = "group",
+    min.space = 0.05)
+
+dataf <- transform(dataf, x = factor(x, levels = c(5, 10, 15,
+    20), labels = c("5 years", "10 years", "15 years", "20 years")),
+    y = round(y))
+
+## Plot
+plot_slopegraph(dataf) + labs(title = "Estimates of % survival rates") +
+    theme(axis.title = element_blank(), axis.ticks = element_blank(),
+        plot.title = element_text(hjust = 0.5, family = "American Typewriter",
+            face = "bold"), axis.text = element_text(family = "American Typewriter",
+            face = "bold"))
+```
+### seasonal plot 
+
+```{r}
+p_load(forecast)
+theme_set(theme_classic())
+
+# Subset data
+nottem_small <- window(nottem, start = c(1920, 1), end = c(1925,
+    12))  # subset a smaller timewindow
+
+# Plot
+ggseasonplot(AirPassengers) + labs(title = "Seasonal plot: International Airline Passengers")
+ggseasonplot(nottem_small) + labs(title = "Seasonal plot: Air temperatures at Nottingham Castle")
+```
+## groups
+
+### hierarchical dendrogram 
+```{r}
+# install.packages(ggdendro)
+p_load(ggdendro)
+theme_set(theme_bw())
+
+hc <- hclust(dist(USArrests), method = "average")  # hierarchical clustering
+
+ggdendrogram(hc, rotate = TRUE, size = 2)
+```
+## Clusters 
+
+```{r}
+# load/reload libraries as needed
+p_load(ggalt)
+p_load(ggfortify)
+theme_set(theme_classic())
+
+# we'll use the Iris dataset
+# filter out the Species column
+dataf <- iris %>% dplyr::select(-Species)
+# compute the principal components
+pca_mod <- prcomp(dataf)
+# convert to dataframe & add back the Species column
+df_pc <- data.frame(pca_mod$x, Species=iris$Species)
+# create the subsetted dataframes to be encircled in the plot
+df_pc_vir <- df_pc %>% dplyr::filter(Species == "virginica") # df for 'virginica'
+df_pc_set <- df_pc %>% dplyr::filter(Species == "setosa")  # df for 'setosa'
+df_pc_ver <- df_pc %>% dplyr::filter(Species == "versicolor")  # df for 'versicolor'
+ 
+ggplot(df_pc, aes(PC1, PC2, col=Species)) + # base call
+    geom_point(aes(shape=Species), size=2) + # add points
+    labs(title="Iris Clusters", 
+         subtitle="With principal components PC1 and PC2 as X and Y axis",
+         caption="Source: Iris") + 
+    coord_cartesian(xlim = 1.2 * c(min(df_pc$PC1), max(df_pc$PC1)), 
+                    ylim = 1.2 * c(min(df_pc$PC2), max(df_pc$PC2))) + # change axis limits (without deleting points)
+    geom_encircle(data = df_pc_vir, aes(x=PC1, y=PC2)) +   # draw circles
+    geom_encircle(data = df_pc_set, aes(x=PC1, y=PC2)) + 
+    geom_encircle(data = df_pc_ver, aes(x=PC1, y=PC2))
+
+```
+
+## Interactivity 
+```{r}
+library(plotly)
+data <- data.frame(cond = rep(c("condition_1", "condition_2"),
+    each = 10), my_x = 1:100 + rnorm(100, sd = 9), my_y = 1:100 +
+    rnorm(100, sd = 16))
+
+my_graph <- ggplot(data, aes(x = my_x, y = my_y)) + geom_point(shape = 1)
+
+# Let's make it interactive using the ggplotly function !
+p <- ggplotly(my_graph)
+p
+```
+## animate 
+INCOMPLETE CHECK LESSON 6 IF YOU WANT 
+```{r}
+p_load(gapminder)
+data <- gapminder
+
+my_graph <- data %>%
+    ggplot(aes(x = gdpPercap, y = lifeExp, col = continent, size = pop)) +
+    geom_point(alpha = 0.8) + theme_minimal() + theme(legend.position = "bottom") +
+    guides(size = "none") + labs(x = "GDP per Capita", y = "Life Expectancy",
+    col = "")
+
+p_load(gganimate)
+
+p <- my_graph + transition_time(year)
+animate(p, width = 700, height = 450, renderer = ffmpeg_renderer(format = "webm"))
+```
+
+```{r}
+p <- my_graph + transition_time(year) + labs(title = "Year: {frame_time}")
+
+animate(p, width = 700, height = 450, renderer = ffmpeg_renderer(format = "webm"))
+```
+
+```{r}
+p <- my_graph + geom_text(aes(x = min(gdpPercap), y = min(lifeExp),
+    label = as.factor(year)), hjust = -2, vjust = -0.2, alpha = 0.2,
+    col = "gray", size = 20) + transition_states(as.factor(year),
+    state_length = 0)
+
+animate(p, width = 700, height = 450, renderer = ffmpeg_renderer(format = "webm"))
+```
+
+# data cleaning 
+
+```{r}
+library(tidyverse)
+p_load(janitor)
+
+moma <- read_csv("data_artworks.csv", col_types = cols(BeginDate = col_number(),
+    EndDate = col_number(), `Length (cm)` = col_number(), `Circumference (cm)` = col_number(),
+    `Duration (sec.)` = col_number(), `Diameter (cm)` = col_number())) %>%
+    clean_names()
+
+problems(moma)
+```
+
+
+```{r}
+library(stringr)
+moma <- moma %>%
+    mutate(gender = str_replace_all(gender, fixed("(female)",
+        ignore_case = TRUE), "F"), gender = str_replace_all(gender,
+        fixed("(male)", ignore_case = TRUE), "M"), num_artists = str_count(gender,
+        "[:alpha:]"), num_artists = na_if(num_artists, 0), n_female_artists = str_count(gender,
+        "F"), n_male_artists = str_count(gender, "M"), artist_gender = case_when(num_artists ==
+        1 & n_female_artists == 1 ~ "Female", num_artists ==
+        1 & n_male_artists == 1 ~ "Male"))
+```
+
+What different kinds of art classifications are available?
+```{r}
+moma %>%
+    distinct(classification) %>%
+    print(n = Inf)
+
+```
+filter on paintings 
+
+```{r}
+library(tidyr)
+moma <- moma %>%
+    filter(classification == "Painting") %>%
+    drop_na(height_cm, width_cm) %>%
+    filter(height_cm > 0 & width_cm > 0)
+```
+
+select some columsn 
+```{r}
+moma <- moma %>%
+    select(title, contains("artist"), contains("year"), contains("_cm"),
+           classification, department)
+```
+```{r}
+write_csv(moma, "artworks-cleaned.csv")
+```
+
+
+
+## read data
+
+```{r}
+p_load(here)
+p_load(readr)
+p_load(dplyr)
+moma <- read_csv("artworks-cleaned.csv")
+```
+
+some general info like the number 
+```{r}
+glimpse(moma)
+n_artists <- moma %>% distinct(artist) %>% tally() %>% pull() # tally and pull get us the count of the distinct artists 
+most_paint <- moma %>% dplyr::count(artist, sort = TRUE)
+painitng_gender <- moma %>% dplyr::count(artist_gender)
+artist_gender <- moma %>%  dplyr::count(artist_gender, artist, sort = TRUE)
+female_artists <- artist_gender %>% filter(artist_gender == "Female")
+artist_gender %>% top_n(2)
+artist_gender %>% group_by(artist_gender) %>% top_n(1)
+artist_gender %>% dplyr::count(artist_gender)
+```
+## visualize 
+```{r}
+moma_dim <- moma %>%
+    filter(height_cm < 600, width_cm < 760) %>%
+    mutate(hw_ratio = height_cm/width_cm, hw_cat = case_when(hw_ratio >
+        1 ~ "taller than wide", hw_ratio < 1 ~ "wider than tall",
+        hw_ratio == 1 ~ "perfect square"))
+
+library(ggthemes)  # to load the fivethirtyeight theme
+
+ggplot(moma_dim, aes(x = width_cm, y = height_cm, colour = hw_cat)) +
+    geom_point(alpha = 0.5) + ggtitle("MoMA Paintings, Tall and Wide") +
+    scale_colour_manual(name = "", values = c("gray50", "#FF9900",
+        "#B14CF0")) + theme_fivethirtyeight() + theme(axis.title = element_text()) +
+    labs(x = "Width", y = "Height")
+
+```
+
+```{r}
+ggplot(moma_dim, aes(x = width_cm, y = height_cm, colour = hw_cat)) +
+    geom_point(alpha = 0.5, show.legend = FALSE) + ggtitle("MoMA Paintings, Tall and Wide") +
+    scale_colour_manual(name = "", values = c("gray50", "#ee5863",
+        "#6999cd")) + theme_fivethirtyeight() + theme(axis.title = element_text()) +
+    labs(x = "Width", y = "Height") + annotate(x = 200, y = 380,
+    geom = "text", label = "Taller than\nWide", color = "#ee5863",
+    size = 5, hjust = 1, fontface = 2) + annotate(x = 375, y = 100,
+    geom = "text", label = "Wider than\nTall", color = "#6999cd",
+    size = 5, hjust = 0, fontface = 2)
+```
+
+
+
+
+
+
